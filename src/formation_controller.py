@@ -210,6 +210,7 @@ def send_position_target(state: VehicleState, lat: float, lon: float) -> None:
         0,
         0,
         0,
+        0,
     )
 
 
