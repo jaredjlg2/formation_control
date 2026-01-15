@@ -42,6 +42,10 @@ maintain a formation offset (behind-left and behind-right) relative to the leade
 - `config/vehicles.yaml` holds endpoints, SYSIDs, and formation offsets.
 - `scripts/start_swarm.sh` launches three motorboat SITL instances via `sim_vehicle.py`
   and forwards MAVLink to QGroundControl on UDP port `14550` (override with `QGC_PORT`).
+  By default it runs in headless mode (`HEADLESS=1`) to avoid opening terminal windows
+  and to keep MAVProxy from exiting when no terminal is available. Set `HEADLESS=0` to
+  restore MAVProxy/console behavior, or pass extra `sim_vehicle.py` flags with
+  `SIM_VEHICLE_ARGS="..."`.
 - `scripts/stop_swarm.sh` stops those SITL processes.
 
 ## QGroundControl Setup & Scripts

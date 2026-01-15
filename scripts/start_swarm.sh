@@ -9,6 +9,8 @@ ARDUPILOT_DIR=${ARDUPILOT_DIR:-$HOME/ardupilot}
 SIM_VEHICLE="${ARDUPILOT_DIR}/Tools/autotest/sim_vehicle.py"
 ARDUROVER_BIN="${ARDUPILOT_DIR}/build/sitl/bin/ardurover"
 QGC_PORT=${QGC_PORT:-14550}
+HEADLESS=${HEADLESS:-1}
+SIM_VEHICLE_ARGS=${SIM_VEHICLE_ARGS:-}
 
 if [[ ! -f "${SIM_VEHICLE}" ]]; then
   echo "sim_vehicle.py not found at ${SIM_VEHICLE}" >&2
@@ -25,6 +27,16 @@ fi
 mkdir -p "${LOG_DIR}"
 : > "${LOG_DIR}/sitl_pids.txt"
 
+headless_args=()
+if [[ "${HEADLESS}" == "1" ]]; then
+  headless_args=(--no-mavproxy --no-console)
+fi
+
+extra_args=()
+if [[ -n "${SIM_VEHICLE_ARGS}" ]]; then
+  read -r -a extra_args <<< "${SIM_VEHICLE_ARGS}"
+fi
+
 for idx in 0 1 2; do
   log_file="${LOG_DIR}/sim_vehicle_${idx}.log"
 
@@ -35,6 +47,8 @@ for idx in 0 1 2; do
     -N \
     --no-extra-ports \
     --out "udp:127.0.0.1:${QGC_PORT}" \
+    "${headless_args[@]}" \
+    "${extra_args[@]}" \
     > "${log_file}" 2>&1 &
 
   echo $! >> "${LOG_DIR}/sitl_pids.txt"
