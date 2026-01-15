@@ -32,8 +32,9 @@ for idx in 0 1 2; do
     -v Rover \
     -f motorboat \
     -I "${idx}" \
+    -N \
+    --no-extra-ports \
     --out "udp:127.0.0.1:${QGC_PORT}" \
-    --no-rebuild \
     > "${log_file}" 2>&1 &
 
   echo $! >> "${LOG_DIR}/sitl_pids.txt"
@@ -45,7 +46,8 @@ cat <<SUMMARY
 Swarm started with 3 Rover motorboat SITL instances.
 
 QGC UDP port: ${QGC_PORT}
+Instances: 0, 1, 2
 SYSIDs: 1, 2, 3 (assigned by sim_vehicle.py using instance index)
-Logs: ${LOG_DIR}/sim_vehicle_<I>.log
+Logs: ${LOG_DIR}/sim_vehicle_<I>.log (e.g., ${LOG_DIR}/sim_vehicle_0.log)
 PIDs: ${LOG_DIR}/sitl_pids.txt
 SUMMARY
