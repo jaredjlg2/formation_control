@@ -17,9 +17,8 @@ mkdir -p logs
 
 for idx in 0 1 2; do
   sysid=$((idx + 1))
-  master_port=$((5760 + (10 * idx)))
-  sitl_port=$((5501 + (10 * idx)))
   out_port=$((14550 + idx))
+  qgc_port=14560
 
   "$ARDUROVER_BIN" \
     -S \
@@ -28,21 +27,14 @@ for idx in 0 1 2; do
     --sysid "$sysid" \
     --defaults "$DEFAULTS" \
     --sim-address=127.0.0.1 \
+    --serial0="udp:127.0.0.1:${out_port}" \
+    --serial1="udp:127.0.0.1:${qgc_port}" \
     -I"$idx" \
     > "logs/rover_${idx}.log" 2>&1 &
   echo $! >> "logs/sitl_pids.txt"
   sleep 2
 
-  mavproxy.py \
-    --master "tcp:127.0.0.1:${master_port}" \
-    --sitl "127.0.0.1:${sitl_port}" \
-    --out "udp:127.0.0.1:${out_port}" \
-    --out "udp:127.0.0.1:14560" \
-    > "logs/mavproxy_${idx}.log" 2>&1 &
-  echo $! >> "logs/sitl_pids.txt"
-  sleep 2
-
-  echo "Started SITL SYSID ${sysid} on tcp:127.0.0.1:${master_port} (udp out ${out_port})"
+  echo "Started SITL SYSID ${sysid} (udp out ${out_port}, qgc ${qgc_port})"
 done
 
 echo "Swarm started. PIDs stored in logs/sitl_pids.txt"
