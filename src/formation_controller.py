@@ -28,6 +28,7 @@ class VehicleConfig:
 class VehicleState:
     config: VehicleConfig
     mav: mavutil.mavfile
+    endpoint: str
     last_heartbeat: float = 0.0
     last_global_position: float = 0.0
     lat: float | None = None
@@ -51,18 +52,46 @@ def load_config(path: Path) -> Dict[str, VehicleConfig]:
     return vehicles
 
 
+def build_listen_endpoints(endpoint: str) -> list[str]:
+    parts = endpoint.split(":")
+    if len(parts) < 3:
+        return [endpoint]
+
+    port = parts[-1]
+    preferred = f"udpin:0.0.0.0:{port}"
+    fallback = f"udp:0.0.0.0:{port}"
+    endpoints = [preferred, fallback]
+    unique_endpoints = []
+    for candidate in endpoints:
+        if candidate not in unique_endpoints:
+            unique_endpoints.append(candidate)
+    return unique_endpoints
+
+
 def connect_vehicle(config: VehicleConfig) -> VehicleState:
-    LOG.info("Connecting to %s at %s", config.name, config.endpoint)
-    mav = mavutil.mavlink_connection(
-        config.endpoint,
-        source_system=255,
-        autoreconnect=True,
-        timeout=2,
-    )
-    return VehicleState(config=config, mav=mav)
+    candidates = build_listen_endpoints(config.endpoint)
+    last_state = None
+    for endpoint in candidates:
+        LOG.info("Connecting to %s at %s", config.name, endpoint)
+        mav = mavutil.mavlink_connection(
+            endpoint,
+            source_system=255,
+            autoreconnect=True,
+            timeout=2,
+        )
+        state = VehicleState(config=config, mav=mav, endpoint=endpoint)
+        last_state = state
+        if wait_for_heartbeat(state, timeout_s=8):
+            LOG.info("Using %s for %s", endpoint, config.name)
+            return state
+        LOG.warning("No heartbeat on %s for %s; trying fallback", endpoint, config.name)
+
+    return last_state
 
 
 def wait_for_heartbeat(state: VehicleState, timeout_s: float) -> bool:
+    if state.last_heartbeat > 0:
+        return True
     start = time.monotonic()
     while time.monotonic() - start < timeout_s:
         msg = state.mav.recv_match(type="HEARTBEAT", blocking=True, timeout=1)
@@ -70,7 +99,12 @@ def wait_for_heartbeat(state: VehicleState, timeout_s: float) -> bool:
             state.last_heartbeat = time.monotonic()
             LOG.info("Heartbeat from %s (SYSID %s)", state.config.name, msg.get_srcSystem())
             return True
-    LOG.warning("Timed out waiting for heartbeat from %s", state.config.name)
+    LOG.warning(
+        "Timed out waiting for heartbeat from %s on %s",
+        state.config.name,
+        state.endpoint,
+    )
+    LOG.warning("No UDP packets received; check SITL --out and local bind")
     return False
 
 
