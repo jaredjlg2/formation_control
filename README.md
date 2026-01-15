@@ -1,6 +1,50 @@
 # Formation Control (ArduPilot SITL)
 
-Python tools for multi-vehicle formation control using
-ArduPilot SITL and MAVLink, visualized in QGroundControl.
+Python tools for multi-vehicle formation control using ArduPilot Rover SITL (motorboat)
+with MAVLink, visualized in QGroundControl.
 
-ArduPilot is treated as an external dependency.
+ArduPilot is treated as an external dependency installed on your machine (for example at
+`~/ardupilot`). This repo only contains the Python controller and helper scripts.
+
+## Prerequisites
+
+- Ubuntu machine with Python 3.10+.
+- ArduPilot built for SITL (`Rover`) at `~/ardupilot` or set `ARDUPILOT_DIR` to your path.
+- QGroundControl installed locally.
+
+## Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Quick Start
+
+1. Start the swarm:
+   ```bash
+   ./scripts/start_swarm.sh
+   ```
+2. Open QGroundControl and wait for three boats to connect.
+3. Run the controller:
+   ```bash
+   python src/formation_controller.py
+   ```
+
+**What you should see:** three Rover vehicles appear in QGroundControl. The leader (SYSID 1)
+continues its default motion, while followers (SYSID 2 and 3) switch to GUIDED and move to
+maintain a formation offset (behind-left and behind-right) relative to the leader.
+
+## Details
+
+- `config/vehicles.yaml` holds endpoints, SYSIDs, and formation offsets.
+- `scripts/start_swarm.sh` launches three motorboat SITL instances and routes MAVLink to
+  UDP ports `14550`, `14551`, and `14552` for the controller.
+- `scripts/stop_swarm.sh` stops those SITL processes.
+
+## Notes
+
+- The controller waits for heartbeats and a valid position fix before issuing commands.
+- If any vehicle is missing or times out, the controller logs a warning and continues
+  retrying.
