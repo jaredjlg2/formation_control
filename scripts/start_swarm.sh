@@ -9,7 +9,7 @@ ARDUPILOT_DIR=${ARDUPILOT_DIR:-$HOME/ardupilot}
 SIM_VEHICLE="${ARDUPILOT_DIR}/Tools/autotest/sim_vehicle.py"
 ARDUROVER_BIN="${ARDUPILOT_DIR}/build/sitl/bin/ardurover"
 QGC_PORT=${QGC_PORT:-14550}
-HEADLESS=${HEADLESS:-1}
+HEADLESS=${HEADLESS:-0}
 SIM_VEHICLE_ARGS=${SIM_VEHICLE_ARGS:-}
 
 if [[ ! -f "${SIM_VEHICLE}" ]]; then
@@ -40,16 +40,19 @@ fi
 for idx in 0 1 2; do
   log_file="${LOG_DIR}/sim_vehicle_${idx}.log"
 
-  nohup "${SIM_VEHICLE}" \
-    -v Rover \
-    -f motorboat \
-    -I "${idx}" \
-    -N \
-    --no-extra-ports \
-    --out "udp:127.0.0.1:${QGC_PORT}" \
-    "${headless_args[@]}" \
-    "${extra_args[@]}" \
-    > "${log_file}" 2>&1 &
+  (
+    cd "${ARDUPILOT_DIR}"
+    nohup "${SIM_VEHICLE}" \
+      -v Rover \
+      -f motorboat \
+      -I "${idx}" \
+      -N \
+      --no-extra-ports \
+      --out "udp:127.0.0.1:${QGC_PORT}" \
+      "${headless_args[@]}" \
+      "${extra_args[@]}" \
+      > "${log_file}" 2>&1 &
+  )
 
   echo $! >> "${LOG_DIR}/sitl_pids.txt"
   disown || true
