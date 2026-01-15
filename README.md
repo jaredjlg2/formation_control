@@ -48,3 +48,5 @@ maintain a formation offset (behind-left and behind-right) relative to the leade
 - The controller waits for heartbeats and a valid position fix before issuing commands.
 - If any vehicle is missing or times out, the controller logs a warning and continues
   retrying.
+- Verify the swarm is running with `pgrep -af ardurover` (three processes) and ensure
+  QGroundControl connects via UDP on port `14560`.

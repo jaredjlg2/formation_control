@@ -6,7 +6,6 @@ PID_FILE="logs/sitl_pids.txt"
 if [[ ! -f "$PID_FILE" ]]; then
   echo "No PID file found at $PID_FILE; attempting fallback pkill." >&2
   pkill -f "ardurover" 2>/dev/null || true
-  pkill -f "mavproxy.py" 2>/dev/null || true
   exit 0
 fi
 
@@ -23,4 +22,3 @@ done < "$PID_FILE"
 rm -f "$PID_FILE"
 
 pkill -f "ardurover" 2>/dev/null || true
-pkill -f "mavproxy.py" 2>/dev/null || true
