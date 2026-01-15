@@ -24,10 +24,11 @@ pip install -r requirements.txt
 
 1. Start the swarm:
    ```bash
-   ./scripts/start_swarm.sh
+   bash scripts/start_swarm.sh
    ```
-2. Open QGroundControl and wait for three boats to connect.
-3. Run the controller:
+2. Open QGroundControl and add a UDP link listening on port `14550` (server address blank).
+3. Wait for three boats to connect.
+4. Run the controller:
    ```bash
    python src/formation_controller.py
    ```
@@ -39,14 +40,31 @@ maintain a formation offset (behind-left and behind-right) relative to the leade
 ## Details
 
 - `config/vehicles.yaml` holds endpoints, SYSIDs, and formation offsets.
-- `scripts/start_swarm.sh` launches three motorboat SITL instances and routes MAVLink to
-  UDP ports `14550`, `14551`, and `14552` for the controller.
+- `scripts/start_swarm.sh` launches three motorboat SITL instances via `sim_vehicle.py`
+  and forwards MAVLink to QGroundControl on UDP port `14550` (override with `QGC_PORT`).
 - `scripts/stop_swarm.sh` stops those SITL processes.
+
+## QGroundControl Setup & Scripts
+
+1. In QGroundControl, add a UDP link that listens on port `14550` (leave server addresses
+   blank).
+2. Start the swarm:
+   ```bash
+   bash scripts/start_swarm.sh
+   ```
+3. Stop the swarm:
+   ```bash
+   bash scripts/stop_swarm.sh
+   ```
+4. Optional: verify traffic is flowing:
+   ```bash
+   tcpdump -i lo udp port 14550
+   ```
 
 ## Notes
 
 - The controller waits for heartbeats and a valid position fix before issuing commands.
 - If any vehicle is missing or times out, the controller logs a warning and continues
   retrying.
-- Verify the swarm is running with `pgrep -af ardurover` (three processes) and ensure
-  QGroundControl connects via UDP on port `14560`.
+- Verify the swarm is running with `pgrep -af sim_vehicle.py` (three processes) and ensure
+  QGroundControl connects via UDP on port `14550`.

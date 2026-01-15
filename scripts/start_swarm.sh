@@ -1,40 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ARDUPILOT_DIR=${ARDUPILOT_DIR:-$HOME/ardupilot}
-ARDUROVER_BIN="$ARDUPILOT_DIR/build/sitl/bin/ardurover"
-DEFAULTS="$ARDUPILOT_DIR/Tools/autotest/default_params/rover.parm,$ARDUPILOT_DIR/Tools/autotest/default_params/motorboat.parm"
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+REPO_DIR=$(cd "${SCRIPT_DIR}/.." && pwd)
+LOG_DIR="${REPO_DIR}/logs"
 
-if [[ ! -x "$ARDUROVER_BIN" ]]; then
-  echo "ardurover SITL binary not found at $ARDUROVER_BIN" >&2
-  echo "Build ArduPilot SITL first (e.g., ./waf configure --board sitl && ./waf rover)." >&2
-  echo "You can set ARDUPILOT_DIR to your ArduPilot checkout." >&2
+ARDUPILOT_DIR=${ARDUPILOT_DIR:-$HOME/ardupilot}
+SIM_VEHICLE="${ARDUPILOT_DIR}/Tools/autotest/sim_vehicle.py"
+ARDUROVER_BIN="${ARDUPILOT_DIR}/build/sitl/bin/ardurover"
+QGC_PORT=${QGC_PORT:-14550}
+
+if [[ ! -f "${SIM_VEHICLE}" ]]; then
+  echo "sim_vehicle.py not found at ${SIM_VEHICLE}" >&2
+  echo "Set ARDUPILOT_DIR to your ArduPilot checkout (default: ~/ardupilot)." >&2
   exit 1
 fi
 
-mkdir -p logs
-> logs/sitl_pids.txt
+if [[ ! -x "${ARDUROVER_BIN}" ]]; then
+  echo "ardurover SITL binary not found at ${ARDUROVER_BIN}." >&2
+  echo "Build SITL once (e.g., ./waf configure --board sitl && ./waf rover) and retry." >&2
+  exit 1
+fi
+
+mkdir -p "${LOG_DIR}"
+: > "${LOG_DIR}/sitl_pids.txt"
 
 for idx in 0 1 2; do
-  sysid=$((idx + 1))
-  out_port=$((14550 + idx))
-  qgc_port=14560
+  log_file="${LOG_DIR}/sim_vehicle_${idx}.log"
 
-  "$ARDUROVER_BIN" \
-    -S \
-    --model motorboat \
-    --speedup 1 \
-    --sysid "$sysid" \
-    --defaults "$DEFAULTS" \
-    --sim-address=127.0.0.1 \
-    --serial0="udp:127.0.0.1:${out_port}" \
-    --serial1="udp:127.0.0.1:${qgc_port}" \
-    -I"$idx" \
-    > "logs/rover_${idx}.log" 2>&1 &
-  echo $! >> "logs/sitl_pids.txt"
+  "${SIM_VEHICLE}" \
+    -v Rover \
+    -f motorboat \
+    -I "${idx}" \
+    --out "udp:127.0.0.1:${QGC_PORT}" \
+    --no-rebuild \
+    > "${log_file}" 2>&1 &
+
+  echo $! >> "${LOG_DIR}/sitl_pids.txt"
   sleep 2
 
-  echo "Started SITL SYSID ${sysid} (udp out ${out_port}, qgc ${qgc_port})"
 done
 
-echo "Swarm started. PIDs stored in logs/sitl_pids.txt"
+cat <<SUMMARY
+Swarm started with 3 Rover motorboat SITL instances.
+
+QGC UDP port: ${QGC_PORT}
+SYSIDs: 1, 2, 3 (assigned by sim_vehicle.py using instance index)
+Logs: ${LOG_DIR}/sim_vehicle_<I>.log
+PIDs: ${LOG_DIR}/sitl_pids.txt
+SUMMARY
