@@ -39,9 +39,12 @@ maintain a formation offset (behind-left and behind-right) relative to the leade
 
 ## Details
 
-- `config/vehicles.yaml` holds endpoints, SYSIDs, and formation offsets.
+- `config/vehicles.yaml` holds endpoints, SYSIDs, and formation offsets. By default the
+  controller listens on UDP ports `14560`-`14562`.
 - `scripts/start_swarm.sh` launches three motorboat SITL instances via `sim_vehicle.py`
   and forwards MAVLink to QGroundControl on UDP port `14550` (override with `QGC_PORT`).
+  It also forwards MAVLink to the controller on UDP ports `14560`-`14562` (override with
+  `CONTROLLER_BASE_PORT`).
   It assigns unique SYSIDs (1-3) and staggers start positions around a base location
   (`BASE_LAT`, `BASE_LON`, `BASE_ALT`, `BASE_HEADING`) with spacing in meters controlled
   by `START_SPACING_M`.

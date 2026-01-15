@@ -9,6 +9,7 @@ ARDUPILOT_DIR=${ARDUPILOT_DIR:-$HOME/ardupilot}
 SIM_VEHICLE="${ARDUPILOT_DIR}/Tools/autotest/sim_vehicle.py"
 ARDUROVER_BIN="${ARDUPILOT_DIR}/build/sitl/bin/ardurover"
 QGC_PORT=${QGC_PORT:-14550}
+CONTROLLER_BASE_PORT=${CONTROLLER_BASE_PORT:-14560}
 HEADLESS=${HEADLESS:-0}
 MAVPROXY_ARGS=${MAVPROXY_ARGS:-"--daemon --non-interactive"}
 SIM_VEHICLE_ARGS=${SIM_VEHICLE_ARGS:-}
@@ -73,6 +74,7 @@ PY
   )
 
   pushd "${ARDUPILOT_DIR}" >/dev/null
+  controller_port=$((CONTROLLER_BASE_PORT + idx))
   nohup "${SIM_VEHICLE}" \
     -v Rover \
     -f motorboat \
@@ -82,6 +84,7 @@ PY
     --custom-location "${home_location}" \
     --no-extra-ports \
     --out "udp:127.0.0.1:${QGC_PORT}" \
+    --out "udp:127.0.0.1:${controller_port}" \
     "${headless_args[@]}" \
     "${mavproxy_args[@]}" \
     "${extra_args[@]}" \
@@ -99,6 +102,7 @@ cat <<SUMMARY
 Swarm started with 3 Rover motorboat SITL instances.
 
 QGC UDP port: ${QGC_PORT}
+Controller UDP ports: ${CONTROLLER_BASE_PORT}-$((CONTROLLER_BASE_PORT + 2))
 Instances: 0, 1, 2
 SYSIDs: 1, 2, 3 (assigned explicitly per instance)
 Logs: ${LOG_DIR}/sim_vehicle_<I>.log (e.g., ${LOG_DIR}/sim_vehicle_0.log)

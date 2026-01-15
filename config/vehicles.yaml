@@ -1,19 +1,19 @@
 vehicles:
   - name: leader
     sysid: 1
-    endpoint: udpin:0.0.0.0:14550
+    endpoint: udpin:0.0.0.0:14560
     offset:
       north_m: 0
       east_m: 0
   - name: follower_left
     sysid: 2
-    endpoint: udpin:0.0.0.0:14551
+    endpoint: udpin:0.0.0.0:14561
     offset:
       north_m: -15
       east_m: -10
   - name: follower_right
     sysid: 3
-    endpoint: udpin:0.0.0.0:14552
+    endpoint: udpin:0.0.0.0:14562
     offset:
       north_m: -15
       east_m: 10
