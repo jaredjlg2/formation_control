@@ -11,6 +11,7 @@ if [[ ! -x "$SIM_VEHICLE" ]]; then
 fi
 
 mkdir -p logs
+> logs/sitl_pids.txt
 
 for idx in 0 1 2; do
   sysid=$((idx + 1))
@@ -22,10 +23,8 @@ for idx in 0 1 2; do
     --sysid "$sysid" \
     --out "udp:127.0.0.1:${out_port}" \
     --out "udp:127.0.0.1:14560" \
-    --console \
-    --map \
-    > "logs/sitl_${sysid}.log" 2>&1 &
-  echo $! >> logs/sitl_pids.txt
+    > "logs/sitl_${idx}.log" 2>&1 &
+  echo $! >> "logs/sitl_pids.txt"
   sleep 2
   echo "Started SITL SYSID ${sysid} on udp:127.0.0.1:${out_port}"
 done
