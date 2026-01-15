@@ -1,0 +1,19 @@
+vehicles:
+  - name: leader
+    sysid: 1
+    endpoint: udp:127.0.0.1:14550
+    offset:
+      north_m: 0
+      east_m: 0
+  - name: follower_left
+    sysid: 2
+    endpoint: udp:127.0.0.1:14551
+    offset:
+      north_m: -15
+      east_m: -10
+  - name: follower_right
+    sysid: 3
+    endpoint: udp:127.0.0.1:14552
+    offset:
+      north_m: -15
+      east_m: 10
