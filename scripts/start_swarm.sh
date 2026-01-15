@@ -28,7 +28,7 @@ mkdir -p "${LOG_DIR}"
 for idx in 0 1 2; do
   log_file="${LOG_DIR}/sim_vehicle_${idx}.log"
 
-  "${SIM_VEHICLE}" \
+  nohup "${SIM_VEHICLE}" \
     -v Rover \
     -f motorboat \
     -I "${idx}" \
@@ -38,6 +38,7 @@ for idx in 0 1 2; do
     > "${log_file}" 2>&1 &
 
   echo $! >> "${LOG_DIR}/sitl_pids.txt"
+  disown || true
   sleep 2
 
 done
