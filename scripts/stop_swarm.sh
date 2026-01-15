@@ -9,6 +9,9 @@ if [[ ! -f "$PID_FILE" ]]; then
 fi
 
 while read -r pid; do
+  if [[ -z "$pid" ]]; then
+    continue
+  fi
   if kill -0 "$pid" 2>/dev/null; then
     echo "Stopping SITL PID $pid"
     kill "$pid"
