@@ -14,9 +14,7 @@ if [[ -f "${PID_FILE}" ]]; then
   done < "${PID_FILE}"
 fi
 
-pkill -f sim_vehicle.py 2>/dev/null || true
-pkill -f mavproxy.py 2>/dev/null || true
-pkill -f ardurover 2>/dev/null || true
+pkill -f 'ardurover|mavproxy.py|sim_vehicle.py' 2>/dev/null || true
 
 rm -f "${PID_FILE}"
 
