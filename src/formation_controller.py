@@ -128,9 +128,8 @@ def wait_for_position(state: VehicleState, timeout_s: float) -> bool:
 
 def set_guided_and_arm(state: VehicleState) -> None:
     LOG.info("Setting %s to GUIDED", state.config.name)
-    state.mav.set_mode_apm(
-        mavutil.mode_mapping_ardupilotmavlink(state.mav)["GUIDED"]
-    )
+    if not _set_guided_mode(state):
+        return
 
     msg = state.mav.recv_match(type="HEARTBEAT", blocking=True, timeout=2)
     if msg:
@@ -139,6 +138,43 @@ def set_guided_and_arm(state: VehicleState) -> None:
             LOG.info("Arming %s", state.config.name)
             state.mav.arducopter_arm()
             state.mav.motors_armed_wait(timeout=10)
+
+
+def _set_guided_mode(state: VehicleState) -> bool:
+    try:
+        state.mav.set_mode("GUIDED")
+        return True
+    except Exception as exc:
+        LOG.warning("Failed to set GUIDED via set_mode for %s: %s", state.config.name, exc)
+
+    mode_mapping = None
+    if hasattr(state.mav, "mode_mapping"):
+        try:
+            mode_mapping = state.mav.mode_mapping()
+        except Exception as exc:
+            LOG.warning(
+                "Failed to read mode mapping from vehicle for %s: %s",
+                state.config.name,
+                exc,
+            )
+
+    if not mode_mapping:
+        try:
+            mode_mapping = mavutil.mode_mapping(state.mav)
+        except Exception as exc:
+            LOG.warning(
+                "Failed to read mode mapping via mavutil for %s: %s",
+                state.config.name,
+                exc,
+            )
+
+    if not mode_mapping or "GUIDED" not in mode_mapping:
+        LOG.error("GUIDED mode not available for %s; available: %s",
+                  state.config.name, sorted(mode_mapping or []))
+        return False
+
+    state.mav.set_mode_apm(mode_mapping["GUIDED"])
+    return True
 
 
 def meters_to_latlon_offset(north_m: float, east_m: float, lat_deg: float) -> Tuple[float, float]:
