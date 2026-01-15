@@ -40,22 +40,22 @@ fi
 for idx in 0 1 2; do
   log_file="${LOG_DIR}/sim_vehicle_${idx}.log"
 
-  (
-    cd "${ARDUPILOT_DIR}"
-    nohup "${SIM_VEHICLE}" \
-      -v Rover \
-      -f motorboat \
-      -I "${idx}" \
-      -N \
-      --no-extra-ports \
-      --out "udp:127.0.0.1:${QGC_PORT}" \
-      "${headless_args[@]}" \
-      "${extra_args[@]}" \
-      > "${log_file}" 2>&1 &
-  )
+  pushd "${ARDUPILOT_DIR}" >/dev/null
+  nohup "${SIM_VEHICLE}" \
+    -v Rover \
+    -f motorboat \
+    -I "${idx}" \
+    -N \
+    --no-extra-ports \
+    --out "udp:127.0.0.1:${QGC_PORT}" \
+    "${headless_args[@]}" \
+    "${extra_args[@]}" \
+    > "${log_file}" 2>&1 &
+  pid=$!
+  popd >/dev/null
 
-  echo $! >> "${LOG_DIR}/sitl_pids.txt"
-  disown || true
+  echo "${pid}" >> "${LOG_DIR}/sitl_pids.txt"
+  disown "${pid}" || true
   sleep 2
 
 done
