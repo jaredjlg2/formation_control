@@ -2,60 +2,70 @@ vehicles:
   - name: leader
     sysid: 1
     endpoint: udpin:0.0.0.0:14560
+    swarm_port: 14600
     offset:
       north_m: 0
       east_m: 0
   - name: follower_1
     sysid: 2
     endpoint: udpin:0.0.0.0:14561
+    swarm_port: 14601
     offset:
       north_m: -10
       east_m: -20
   - name: follower_2
     sysid: 3
     endpoint: udpin:0.0.0.0:14562
+    swarm_port: 14602
     offset:
       north_m: -10
       east_m: 0
   - name: follower_3
     sysid: 4
     endpoint: udpin:0.0.0.0:14563
+    swarm_port: 14603
     offset:
       north_m: -10
       east_m: 20
   - name: follower_4
     sysid: 5
     endpoint: udpin:0.0.0.0:14564
+    swarm_port: 14604
     offset:
       north_m: -20
       east_m: -20
   - name: follower_5
     sysid: 6
     endpoint: udpin:0.0.0.0:14565
+    swarm_port: 14605
     offset:
       north_m: -20
       east_m: 0
   - name: follower_6
     sysid: 7
     endpoint: udpin:0.0.0.0:14566
+    swarm_port: 14606
     offset:
       north_m: -20
       east_m: 20
   - name: follower_7
     sysid: 8
     endpoint: udpin:0.0.0.0:14567
+    swarm_port: 14607
     offset:
       north_m: -30
       east_m: -20
   - name: follower_8
     sysid: 9
     endpoint: udpin:0.0.0.0:14568
+    swarm_port: 14608
     offset:
       north_m: -30
       east_m: 0
   - name: follower_9
     sysid: 10
     endpoint: udpin:0.0.0.0:14569
+    swarm_port: 14609
     offset:
       north_m: -30
       east_m: 20

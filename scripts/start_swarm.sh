@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=$(cd "${SCRIPT_DIR}/.." && pwd)
 LOG_DIR="${REPO_DIR}/logs"
+CONFIG_FILE="${REPO_DIR}/config/vehicles.yaml"
+NUM_VEHICLES=""
 
 ARDUPILOT_DIR=${ARDUPILOT_DIR:-$HOME/ardupilot}
 SIM_VEHICLE="${ARDUPILOT_DIR}/Tools/autotest/sim_vehicle.py"
@@ -18,6 +20,23 @@ BASE_LON=${BASE_LON:-8.545594}
 BASE_ALT=${BASE_ALT:-488}
 BASE_HEADING=${BASE_HEADING:-0}
 START_SPACING_M=${START_SPACING_M:-5}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      CONFIG_FILE="$2"
+      shift 2
+      ;;
+    --num-vehicles)
+      NUM_VEHICLES="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
 
 if [[ ! -f "${SIM_VEHICLE}" ]]; then
   echo "sim_vehicle.py not found at ${SIM_VEHICLE}" >&2
@@ -34,6 +53,11 @@ fi
 mkdir -p "${LOG_DIR}"
 : > "${LOG_DIR}/sitl_pids.txt"
 
+if [[ ! -f "${CONFIG_FILE}" ]]; then
+  echo "Config file not found: ${CONFIG_FILE}" >&2
+  exit 1
+fi
+
 headless_args=()
 if [[ "${HEADLESS}" == "1" ]]; then
   headless_args=(--no-console)
@@ -49,12 +73,38 @@ if [[ -n "${MAVPROXY_ARGS}" ]]; then
   mavproxy_args=(--mavproxy-args "${MAVPROXY_ARGS}")
 fi
 
-vehicle_count=10
+mapfile -t vehicle_lines < <(
+  python3 - <<PY
+import yaml
+from pathlib import Path
+
+config_path = Path("${CONFIG_FILE}")
+num_vehicles = "${NUM_VEHICLES}"
+with config_path.open() as f:
+    data = yaml.safe_load(f)
+vehicles = data.get("vehicles", [])
+if num_vehicles:
+    vehicles = vehicles[: int(num_vehicles)]
+
+for idx, vehicle in enumerate(vehicles):
+    sysid = int(vehicle.get("sysid", idx + 1))
+    endpoint = vehicle.get("endpoint", "")
+    port = endpoint.rsplit(":", 1)[-1] if ":" in endpoint else ""
+    print(f"{sysid}\t{port}")
+PY
+)
+
+if [[ ${#vehicle_lines[@]} -eq 0 ]]; then
+  echo "No vehicles found in config." >&2
+  exit 1
+fi
+
+vehicle_count=${#vehicle_lines[@]}
 grid_columns=5
 
 for idx in $(seq 0 $((vehicle_count - 1))); do
+  IFS=$'\t' read -r sysid controller_port <<< "${vehicle_lines[$idx]}"
   log_file="${LOG_DIR}/sim_vehicle_${idx}.log"
-  sysid=$((idx + 1))
   north_offset_m=0
   east_offset_m=0
   if [[ "${idx}" -ne 0 ]]; then
@@ -78,7 +128,9 @@ PY
   )
 
   pushd "${ARDUPILOT_DIR}" >/dev/null
-  controller_port=$((CONTROLLER_BASE_PORT + idx))
+  if [[ -z "${controller_port}" ]]; then
+    controller_port=$((CONTROLLER_BASE_PORT + idx))
+  fi
   nohup "${SIM_VEHICLE}" \
     -v Rover \
     -f motorboat \
@@ -106,9 +158,23 @@ cat <<SUMMARY
 Swarm started with ${vehicle_count} Rover motorboat SITL instances.
 
 QGC UDP port: ${QGC_PORT}
-Controller UDP ports: ${CONTROLLER_BASE_PORT}-$((CONTROLLER_BASE_PORT + vehicle_count - 1))
+Controller UDP ports: configured via ${CONFIG_FILE}
 Instances: 0-$((vehicle_count - 1))
-SYSIDs: 1-${vehicle_count} (assigned explicitly per instance)
+SYSIDs: configured via ${CONFIG_FILE}
 Logs: ${LOG_DIR}/sim_vehicle_<I>.log (e.g., ${LOG_DIR}/sim_vehicle_0.log)
 PIDs: ${LOG_DIR}/sitl_pids.txt
 SUMMARY
+
+"${SCRIPT_DIR}/start_companions.sh" --config "${CONFIG_FILE}" ${NUM_VEHICLES:+--num-vehicles "${NUM_VEHICLES}"} &
+companions_pid=$!
+
+cleanup() {
+  if kill -0 "${companions_pid}" 2>/dev/null; then
+    kill "${companions_pid}" 2>/dev/null || true
+  fi
+  "${SCRIPT_DIR}/stop_swarm.sh"
+}
+
+trap cleanup INT TERM
+
+wait "${companions_pid}"
