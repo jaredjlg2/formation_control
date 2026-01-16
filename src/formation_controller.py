@@ -211,18 +211,32 @@ def rotate_offset(north_m: float, east_m: float, heading_deg: float) -> Tuple[fl
     return rotated_n, rotated_e
 
 
-def send_position_target(state: VehicleState, lat: float, lon: float) -> None:
+def send_position_target(
+    state: VehicleState,
+    lat: float,
+    lon: float,
+    velocity_n: float,
+    velocity_e: float,
+) -> None:
+    type_mask = (
+        mavutil.mavlink.POSITION_TARGET_TYPEMASK_AX_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AY_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AZ_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_IGNORE
+        | mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE
+    )
     time_boot_ms = int(time.monotonic() * 1e3) % (2**32)
     state.mav.mav.set_position_target_global_int_send(
         time_boot_ms,
         state.config.sysid,
         0,
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-        0b110111111000,
+        type_mask,
         int(lat * 1e7),
         int(lon * 1e7),
         0,
-        0,
+        velocity_n,
+        velocity_e,
         0,
         0,
         0,
@@ -240,6 +254,32 @@ def update_leader_state(state: VehicleState) -> None:
         state.lat = msg.lat / 1e7
         state.lon = msg.lon / 1e7
         state.heading_deg = msg.hdg / 100.0 if msg.hdg != 65535 else state.heading_deg
+
+
+def update_follower_state(state: VehicleState) -> None:
+    msg = state.mav.recv_match(type="GLOBAL_POSITION_INT", blocking=False)
+    if msg:
+        state.last_global_position = time.monotonic()
+        state.lat = msg.lat / 1e7
+        state.lon = msg.lon / 1e7
+
+
+def latlon_to_meters_offset(
+    lat_origin: float,
+    lon_origin: float,
+    lat_target: float,
+    lon_target: float,
+) -> Tuple[float, float]:
+    earth_radius = 6378137.0
+    d_lat = math.radians(lat_target - lat_origin)
+    d_lon = math.radians(lon_target - lon_origin)
+    north_m = d_lat * earth_radius
+    east_m = d_lon * earth_radius * math.cos(math.radians(lat_origin))
+    return north_m, east_m
+
+
+def clamp(value: float, min_value: float, max_value: float) -> float:
+    return max(min_value, min(value, max_value))
 
 
 def main() -> None:
@@ -270,8 +310,10 @@ def main() -> None:
         set_guided_and_arm(follower)
 
     LOG.info("Starting formation loop")
-    send_rate_hz = 2.5
+    send_rate_hz = 5.0
     send_interval = 1.0 / send_rate_hz
+    catchup_gain = 0.8
+    max_catchup_speed = 3.0
 
     while True:
         update_leader_state(leader)
@@ -287,6 +329,7 @@ def main() -> None:
             continue
 
         for follower in followers:
+            update_follower_state(follower)
             rotated_n, rotated_e = rotate_offset(
                 follower.config.offset_n,
                 follower.config.offset_e,
@@ -295,14 +338,28 @@ def main() -> None:
             d_lat, d_lon = meters_to_latlon_offset(rotated_n, rotated_e, leader.lat)
             target_lat = leader.lat + d_lat
             target_lon = leader.lon + d_lon
-            send_position_target(follower, target_lat, target_lon)
+            velocity_n = 0.0
+            velocity_e = 0.0
+            if follower.lat is not None and follower.lon is not None:
+                error_n, error_e = latlon_to_meters_offset(
+                    follower.lat,
+                    follower.lon,
+                    target_lat,
+                    target_lon,
+                )
+                velocity_n = clamp(error_n * catchup_gain, -max_catchup_speed, max_catchup_speed)
+                velocity_e = clamp(error_e * catchup_gain, -max_catchup_speed, max_catchup_speed)
+
+            send_position_target(follower, target_lat, target_lon, velocity_n, velocity_e)
             LOG.info(
-                "Target for %s -> lat=%.7f lon=%.7f (offset N=%.1f E=%.1f)",
+                "Target for %s -> lat=%.7f lon=%.7f (offset N=%.1f E=%.1f vel N=%.2f E=%.2f)",
                 follower.config.name,
                 target_lat,
                 target_lon,
                 follower.config.offset_n,
                 follower.config.offset_e,
+                velocity_n,
+                velocity_e,
             )
 
         time.sleep(send_interval)
