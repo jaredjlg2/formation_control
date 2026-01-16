@@ -7,6 +7,7 @@ import math
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Event, Thread
 from typing import Dict, Tuple
 
 import yaml
@@ -48,13 +49,15 @@ class BehaviorSettings:
     circle_center_lon: float | None
     circle_radius_m: float
     circle_speed_mps: float
+    boat_count: int
 
 
-def load_config(path: Path) -> Dict[str, VehicleConfig]:
+def load_config(path: Path) -> Tuple[Dict[str, VehicleConfig], list[str]]:
     with path.open("r", encoding="utf-8") as handle:
         raw = yaml.safe_load(handle)
 
     vehicles = {}
+    vehicle_order = []
     for entry in raw["vehicles"]:
         vehicles[entry["name"]] = VehicleConfig(
             name=entry["name"],
@@ -63,7 +66,8 @@ def load_config(path: Path) -> Dict[str, VehicleConfig]:
             offset_n=float(entry["offset"]["north_m"]),
             offset_e=float(entry["offset"]["east_m"]),
         )
-    return vehicles
+        vehicle_order.append(entry["name"])
+    return vehicles, vehicle_order
 
 
 def build_listen_endpoints(endpoint: str) -> list[str]:
@@ -296,7 +300,7 @@ def clamp(value: float, min_value: float, max_value: float) -> float:
     return max(min_value, min(value, max_value))
 
 
-def prompt_behavior_settings() -> BehaviorSettings | None:
+def prompt_behavior_settings(max_boats: int) -> BehaviorSettings | None:
     try:
         import tkinter as tk
         from tkinter import messagebox, ttk
@@ -308,6 +312,7 @@ def prompt_behavior_settings() -> BehaviorSettings | None:
             circle_center_lon=None,
             circle_radius_m=DEFAULT_CIRCLE_RADIUS_M,
             circle_speed_mps=DEFAULT_CIRCLE_SPEED_MPS,
+            boat_count=max_boats,
         )
 
     root = tk.Tk()
@@ -319,6 +324,7 @@ def prompt_behavior_settings() -> BehaviorSettings | None:
     center_lon_var = tk.StringVar(value="")
     radius_var = tk.StringVar(value=str(DEFAULT_CIRCLE_RADIUS_M))
     speed_var = tk.StringVar(value=str(DEFAULT_CIRCLE_SPEED_MPS))
+    boat_count_var = tk.StringVar(value=str(max_boats))
 
     ttk.Label(root, text="Behavior").grid(row=0, column=0, sticky="w", padx=8, pady=6)
     mode_box = ttk.Combobox(
@@ -330,28 +336,38 @@ def prompt_behavior_settings() -> BehaviorSettings | None:
     )
     mode_box.grid(row=0, column=1, padx=8, pady=6)
 
-    ttk.Label(root, text="Circle center lat (optional)").grid(
-        row=1, column=0, sticky="w", padx=8, pady=6
+    ttk.Label(root, text="Boats in swarm").grid(row=1, column=0, sticky="w", padx=8, pady=6)
+    boats_box = ttk.Combobox(
+        root,
+        textvariable=boat_count_var,
+        state="readonly",
+        values=[str(count) for count in range(1, max_boats + 1)],
+        width=28,
     )
-    ttk.Entry(root, textvariable=center_lat_var, width=30).grid(
-        row=1, column=1, padx=8, pady=6
-    )
+    boats_box.grid(row=1, column=1, padx=8, pady=6)
 
-    ttk.Label(root, text="Circle center lon (optional)").grid(
+    ttk.Label(root, text="Circle center lat (optional)").grid(
         row=2, column=0, sticky="w", padx=8, pady=6
     )
-    ttk.Entry(root, textvariable=center_lon_var, width=30).grid(
+    ttk.Entry(root, textvariable=center_lat_var, width=30).grid(
         row=2, column=1, padx=8, pady=6
     )
 
-    ttk.Label(root, text="Circle radius (m)").grid(row=3, column=0, sticky="w", padx=8, pady=6)
-    ttk.Entry(root, textvariable=radius_var, width=30).grid(
+    ttk.Label(root, text="Circle center lon (optional)").grid(
+        row=3, column=0, sticky="w", padx=8, pady=6
+    )
+    ttk.Entry(root, textvariable=center_lon_var, width=30).grid(
         row=3, column=1, padx=8, pady=6
     )
 
-    ttk.Label(root, text="Circle speed (m/s)").grid(row=4, column=0, sticky="w", padx=8, pady=6)
-    ttk.Entry(root, textvariable=speed_var, width=30).grid(
+    ttk.Label(root, text="Circle radius (m)").grid(row=4, column=0, sticky="w", padx=8, pady=6)
+    ttk.Entry(root, textvariable=radius_var, width=30).grid(
         row=4, column=1, padx=8, pady=6
+    )
+
+    ttk.Label(root, text="Circle speed (m/s)").grid(row=5, column=0, sticky="w", padx=8, pady=6)
+    ttk.Entry(root, textvariable=speed_var, width=30).grid(
+        row=5, column=1, padx=8, pady=6
     )
 
     result: BehaviorSettings | None = None
@@ -362,12 +378,22 @@ def prompt_behavior_settings() -> BehaviorSettings | None:
         try:
             radius = float(radius_var.get())
             speed = float(speed_var.get())
+            boat_count = int(boat_count_var.get())
         except ValueError:
-            messagebox.showerror("Invalid input", "Radius and speed must be numeric values.")
+            messagebox.showerror(
+                "Invalid input",
+                "Radius, speed, and boat count must be numeric values.",
+            )
             return
 
         if radius <= 0 or speed <= 0:
             messagebox.showerror("Invalid input", "Radius and speed must be positive values.")
+            return
+        if boat_count < 1 or boat_count > max_boats:
+            messagebox.showerror(
+                "Invalid input",
+                f"Boat count must be between 1 and {max_boats}.",
+            )
             return
 
         center_lat = center_lat_var.get().strip()
@@ -388,6 +414,7 @@ def prompt_behavior_settings() -> BehaviorSettings | None:
             circle_center_lon=center_lon_val,
             circle_radius_m=radius,
             circle_speed_mps=speed,
+            boat_count=boat_count,
         )
         root.destroy()
 
@@ -395,21 +422,25 @@ def prompt_behavior_settings() -> BehaviorSettings | None:
         root.destroy()
 
     ttk.Button(root, text="Start", command=on_start).grid(
-        row=5, column=0, columnspan=2, pady=(6, 10)
+        row=6, column=0, columnspan=2, pady=(6, 10)
     )
     root.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()
     return result
 
 
-def run_follow_leader(leader: VehicleState, followers: list[VehicleState]) -> None:
+def run_follow_leader(
+    leader: VehicleState,
+    followers: list[VehicleState],
+    stop_event: Event,
+) -> None:
     LOG.info("Starting formation loop (follow leader)")
     send_rate_hz = 5.0
     send_interval = 1.0 / send_rate_hz
     catchup_gain = 0.8
     max_catchup_speed = 3.0
 
-    while True:
+    while not stop_event.is_set():
         update_leader_state(leader)
         if leader.lat is None or leader.lon is None or leader.heading_deg is None:
             LOG.warning("Leader position unavailable; retrying")
@@ -465,6 +496,7 @@ def run_circle_formation(
     center_lon: float,
     radius_m: float,
     speed_mps: float,
+    stop_event: Event,
 ) -> None:
     LOG.info(
         "Starting formation loop (circle): center=(%.6f, %.6f) radius=%.1fm speed=%.2fm/s",
@@ -479,7 +511,7 @@ def run_circle_formation(
     omega = speed_mps / radius_m
     vehicle_count = len(vehicles)
 
-    while True:
+    while not stop_event.is_set():
         t = time.monotonic() - start_time
         for idx, vehicle in enumerate(vehicles):
             angle = omega * t + (2 * math.pi * idx / vehicle_count)
@@ -504,22 +536,196 @@ def run_circle_formation(
         time.sleep(send_interval)
 
 
+def run_behavior_control(
+    leader: VehicleState,
+    followers: list[VehicleState],
+    max_boats: int,
+) -> None:
+    try:
+        import tkinter as tk
+        from tkinter import messagebox, ttk
+    except ImportError:
+        LOG.warning("tkinter not available; running default follow leader")
+        stop_event = Event()
+        run_follow_leader(leader, followers, stop_event)
+        return
+
+    root = tk.Tk()
+    root.title("Swarm Behavior")
+    root.resizable(False, False)
+
+    mode_var = tk.StringVar(value=BEHAVIOR_FOLLOW_LEADER)
+    center_lat_var = tk.StringVar(value="")
+    center_lon_var = tk.StringVar(value="")
+    radius_var = tk.StringVar(value=str(DEFAULT_CIRCLE_RADIUS_M))
+    speed_var = tk.StringVar(value=str(DEFAULT_CIRCLE_SPEED_MPS))
+    boat_count_var = tk.StringVar(value=str(max_boats))
+
+    ttk.Label(root, text="Behavior").grid(row=0, column=0, sticky="w", padx=8, pady=6)
+    ttk.Combobox(
+        root,
+        textvariable=mode_var,
+        state="readonly",
+        values=[BEHAVIOR_FOLLOW_LEADER, BEHAVIOR_CIRCLE],
+        width=28,
+    ).grid(row=0, column=1, padx=8, pady=6)
+
+    ttk.Label(root, text="Boats in swarm").grid(row=1, column=0, sticky="w", padx=8, pady=6)
+    ttk.Combobox(
+        root,
+        textvariable=boat_count_var,
+        state="readonly",
+        values=[str(count) for count in range(1, max_boats + 1)],
+        width=28,
+    ).grid(row=1, column=1, padx=8, pady=6)
+
+    ttk.Label(root, text="Circle center lat (optional)").grid(
+        row=2, column=0, sticky="w", padx=8, pady=6
+    )
+    ttk.Entry(root, textvariable=center_lat_var, width=30).grid(
+        row=2, column=1, padx=8, pady=6
+    )
+
+    ttk.Label(root, text="Circle center lon (optional)").grid(
+        row=3, column=0, sticky="w", padx=8, pady=6
+    )
+    ttk.Entry(root, textvariable=center_lon_var, width=30).grid(
+        row=3, column=1, padx=8, pady=6
+    )
+
+    ttk.Label(root, text="Circle radius (m)").grid(row=4, column=0, sticky="w", padx=8, pady=6)
+    ttk.Entry(root, textvariable=radius_var, width=30).grid(
+        row=4, column=1, padx=8, pady=6
+    )
+
+    ttk.Label(root, text="Circle speed (m/s)").grid(row=5, column=0, sticky="w", padx=8, pady=6)
+    ttk.Entry(root, textvariable=speed_var, width=30).grid(
+        row=5, column=1, padx=8, pady=6
+    )
+
+    control_state = {"thread": None, "stop_event": None}
+    all_vehicles = [leader, *followers]
+
+    def stop_running() -> None:
+        if control_state["stop_event"] is not None:
+            control_state["stop_event"].set()
+        if control_state["thread"] is not None:
+            control_state["thread"].join(timeout=5)
+        control_state["thread"] = None
+        control_state["stop_event"] = None
+
+    def on_start() -> None:
+        mode = mode_var.get()
+        try:
+            radius = float(radius_var.get())
+            speed = float(speed_var.get())
+            boat_count = int(boat_count_var.get())
+        except ValueError:
+            messagebox.showerror(
+                "Invalid input",
+                "Radius, speed, and boat count must be numeric values.",
+            )
+            return
+
+        if radius <= 0 or speed <= 0:
+            messagebox.showerror("Invalid input", "Radius and speed must be positive values.")
+            return
+        if boat_count < 1 or boat_count > max_boats:
+            messagebox.showerror(
+                "Invalid input",
+                f"Boat count must be between 1 and {max_boats}.",
+            )
+            return
+
+        center_lat = center_lat_var.get().strip()
+        center_lon = center_lon_var.get().strip()
+        center_lat_val = float(center_lat) if center_lat else None
+        center_lon_val = float(center_lon) if center_lon else None
+
+        if (center_lat_val is None) != (center_lon_val is None):
+            messagebox.showerror(
+                "Invalid input",
+                "Provide both center latitude and longitude, or leave both blank.",
+            )
+            return
+
+        stop_running()
+        selected_vehicles = all_vehicles[:boat_count]
+        stop_event = Event()
+        control_state["stop_event"] = stop_event
+
+        if mode == BEHAVIOR_CIRCLE:
+            circle_center_lat = center_lat_val or leader.lat
+            circle_center_lon = center_lon_val or leader.lon
+            if circle_center_lat is None or circle_center_lon is None:
+                messagebox.showerror(
+                    "Invalid input",
+                    "Unable to resolve circle center; ensure leader has a position fix.",
+                )
+                return
+            for vehicle in selected_vehicles:
+                set_guided_and_arm(vehicle)
+            thread = Thread(
+                target=run_circle_formation,
+                args=(
+                    selected_vehicles,
+                    circle_center_lat,
+                    circle_center_lon,
+                    radius,
+                    speed,
+                    stop_event,
+                ),
+                daemon=True,
+            )
+        else:
+            followers_subset = selected_vehicles[1:]
+            for follower in followers_subset:
+                set_guided_and_arm(follower)
+            thread = Thread(
+                target=run_follow_leader,
+                args=(selected_vehicles[0], followers_subset, stop_event),
+                daemon=True,
+            )
+
+        control_state["thread"] = thread
+        thread.start()
+
+    def on_stop() -> None:
+        stop_running()
+
+    def on_close() -> None:
+        stop_running()
+        root.destroy()
+
+    ttk.Button(root, text="Start", command=on_start).grid(
+        row=6, column=0, padx=8, pady=(6, 10), sticky="ew"
+    )
+    ttk.Button(root, text="Stop", command=on_stop).grid(
+        row=6, column=1, padx=8, pady=(6, 10), sticky="ew"
+    )
+    root.protocol("WM_DELETE_WINDOW", on_close)
+    root.mainloop()
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
 
-    behavior = prompt_behavior_settings()
-    if behavior is None:
-        LOG.info("Behavior selection canceled; exiting.")
+    config_path = Path(__file__).resolve().parents[1] / "config" / "vehicles.yaml"
+    vehicles_cfg, vehicle_order = load_config(config_path)
+
+    if "leader" not in vehicles_cfg:
+        LOG.error("Leader vehicle missing from config; exiting.")
         return
 
-    config_path = Path(__file__).resolve().parents[1] / "config" / "vehicles.yaml"
-    vehicles_cfg = load_config(config_path)
-
     leader_cfg = vehicles_cfg["leader"]
-    follower_cfgs = [vehicles_cfg["follower_left"], vehicles_cfg["follower_right"]]
+    follower_cfgs = [
+        vehicles_cfg[name]
+        for name in vehicle_order
+        if name != "leader" and name in vehicles_cfg
+    ]
 
     leader = connect_vehicle(leader_cfg)
     followers = [connect_vehicle(cfg) for cfg in follower_cfgs]
@@ -534,28 +740,8 @@ def main() -> None:
             return
         if not wait_for_position(follower, timeout_s=30):
             return
-        if behavior.mode == BEHAVIOR_FOLLOW_LEADER:
-            set_guided_and_arm(follower)
 
-    if behavior.mode == BEHAVIOR_CIRCLE:
-        circle_center_lat = behavior.circle_center_lat or leader.lat
-        circle_center_lon = behavior.circle_center_lon or leader.lon
-        if circle_center_lat is None or circle_center_lon is None:
-            LOG.warning("Unable to resolve circle center; aborting.")
-            return
-
-        vehicles = [leader, *followers]
-        for vehicle in vehicles:
-            set_guided_and_arm(vehicle)
-        run_circle_formation(
-            vehicles,
-            circle_center_lat,
-            circle_center_lon,
-            behavior.circle_radius_m,
-            behavior.circle_speed_mps,
-        )
-    else:
-        run_follow_leader(leader, followers)
+    run_behavior_control(leader, followers, max_boats=len([leader, *followers]))
 
 
 if __name__ == "__main__":
