@@ -137,7 +137,25 @@ def set_guided_and_arm(state: VehicleState) -> None:
         if not armed:
             LOG.info("Arming %s", state.config.name)
             state.mav.arducopter_arm()
-            state.mav.motors_armed_wait(timeout=10)
+            wait_for_armed(state, timeout_s=10)
+
+
+def wait_for_armed(state: VehicleState, timeout_s: float) -> bool:
+    try:
+        state.mav.motors_armed_wait(timeout=timeout_s)
+        return True
+    except TypeError:
+        LOG.debug("motors_armed_wait does not accept timeout kwarg; falling back")
+
+    start = time.monotonic()
+    while time.monotonic() - start < timeout_s:
+        msg = state.mav.recv_match(type="HEARTBEAT", blocking=True, timeout=1)
+        if msg:
+            armed = bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+            if armed:
+                return True
+    LOG.warning("Timed out waiting for %s to arm", state.config.name)
+    return False
 
 
 def _set_guided_mode(state: VehicleState) -> bool:
