@@ -105,6 +105,9 @@ heartbeat, and opens a separate UDP socket for lightweight swarm messaging.
 python src/formation_controller.py --num-vehicles 3
 ```
 
+`--num-vehicles` always includes the leader. For example, `--num-vehicles 3`
+starts the leader plus two followers.
+
 Companion logs are written to `logs/companion_<vehicle>.log`.
 
 ### Troubleshooting
