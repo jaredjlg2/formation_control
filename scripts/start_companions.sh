@@ -52,10 +52,12 @@ from pathlib import Path
 config_path = Path("${CONFIG_FILE}")
 num_vehicles = "${NUM_VEHICLES}"
 with config_path.open() as f:
-    data = yaml.safe_load(f)
+    data = yaml.safe_load(f) or {}
 vehicles = data.get("vehicles", [])
 if num_vehicles:
     vehicles = vehicles[: int(num_vehicles)]
+
+mission_port = int(data.get("mission_broadcast_port", 17000))
 
 swarm_ports = []
 for idx, vehicle in enumerate(vehicles):
@@ -65,13 +67,16 @@ for idx, vehicle in enumerate(vehicles):
 
 for idx, vehicle in enumerate(vehicles):
     endpoint = vehicle.get("endpoint", "")
-    name = vehicle.get("name", f"vehicle_{idx}")
-    sysid = int(vehicle.get("sysid", idx + 1))
+    mavlink_port = vehicle.get("mavlink_port")
+    if not endpoint and mavlink_port:
+        endpoint = f"udpin:0.0.0.0:{mavlink_port}"
+    name = vehicle.get("vehicle_id") or vehicle.get("name", f"vehicle_{idx}")
+    sysid = int(vehicle.get("expected_sysid", vehicle.get("sysid", idx + 1)))
     swarm_port = vehicle["swarm_port"]
     peers = ",".join(
         f"127.0.0.1:{port}" for j, port in enumerate(swarm_ports) if j != idx
     )
-    print(f"{name}\t{sysid}\t{endpoint}\t{swarm_port}\t{peers}")
+    print(f"{name}\t{sysid}\t{endpoint}\t{swarm_port}\t{mission_port}\t{peers}")
 PY
 )
 
@@ -81,13 +86,14 @@ if [[ ${#companion_lines[@]} -eq 0 ]]; then
 fi
 
 for line in "${companion_lines[@]}"; do
-  IFS=$'\t' read -r name sysid endpoint swarm_port peers <<< "${line}"
+  IFS=$'\t' read -r name sysid endpoint swarm_port mission_port peers <<< "${line}"
   log_file="${LOG_DIR}/companion_${name}.log"
   nohup python3 "${REPO_DIR}/src/companion.py" \
     --vehicle-id "${name}" \
     --mavlink "${endpoint}" \
     --expected-sysid "${sysid}" \
     --swarm-port "${swarm_port}" \
+    --mission-port "${mission_port}" \
     --peers "${peers}" \
     > "${log_file}" 2>&1 &
   pid=$!
