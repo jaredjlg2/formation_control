@@ -32,10 +32,14 @@ pip install -r requirements.txt
    ```bash
    python src/formation_controller.py
    ```
+   A small app will open where you can select a swarming behavior (follow leader or
+   circle). For circle, optionally set a center lat/lon, radius, and speed.
 
 **What you should see:** three Rover vehicles appear in QGroundControl. The leader (SYSID 1)
 continues its default motion, while followers (SYSID 2 and 3) switch to GUIDED and move to
-maintain a formation offset (behind-left and behind-right) relative to the leader.
+maintain a formation offset (behind-left and behind-right) relative to the leader. For
+the circle behavior, all vehicles switch to GUIDED and space themselves evenly around the
+circle at the requested speed.
 
 ## Details
 

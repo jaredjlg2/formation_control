@@ -14,6 +14,11 @@ from pymavlink import mavutil
 
 LOG = logging.getLogger("formation")
 
+BEHAVIOR_FOLLOW_LEADER = "Follow leader"
+BEHAVIOR_CIRCLE = "Circle around point"
+DEFAULT_CIRCLE_RADIUS_M = 15.0
+DEFAULT_CIRCLE_SPEED_MPS = 2.0
+
 
 @dataclass(frozen=True)
 class VehicleConfig:
@@ -34,6 +39,15 @@ class VehicleState:
     lat: float | None = None
     lon: float | None = None
     heading_deg: float | None = None
+
+
+@dataclass(frozen=True)
+class BehaviorSettings:
+    mode: str
+    circle_center_lat: float | None
+    circle_center_lon: float | None
+    circle_radius_m: float
+    circle_speed_mps: float
 
 
 def load_config(path: Path) -> Dict[str, VehicleConfig]:
@@ -282,34 +296,114 @@ def clamp(value: float, min_value: float, max_value: float) -> float:
     return max(min_value, min(value, max_value))
 
 
-def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
+def prompt_behavior_settings() -> BehaviorSettings | None:
+    try:
+        import tkinter as tk
+        from tkinter import messagebox, ttk
+    except ImportError:
+        LOG.warning("tkinter not available; defaulting to follow leader")
+        return BehaviorSettings(
+            mode=BEHAVIOR_FOLLOW_LEADER,
+            circle_center_lat=None,
+            circle_center_lon=None,
+            circle_radius_m=DEFAULT_CIRCLE_RADIUS_M,
+            circle_speed_mps=DEFAULT_CIRCLE_SPEED_MPS,
+        )
+
+    root = tk.Tk()
+    root.title("Swarm Behavior")
+    root.resizable(False, False)
+
+    mode_var = tk.StringVar(value=BEHAVIOR_FOLLOW_LEADER)
+    center_lat_var = tk.StringVar(value="")
+    center_lon_var = tk.StringVar(value="")
+    radius_var = tk.StringVar(value=str(DEFAULT_CIRCLE_RADIUS_M))
+    speed_var = tk.StringVar(value=str(DEFAULT_CIRCLE_SPEED_MPS))
+
+    ttk.Label(root, text="Behavior").grid(row=0, column=0, sticky="w", padx=8, pady=6)
+    mode_box = ttk.Combobox(
+        root,
+        textvariable=mode_var,
+        state="readonly",
+        values=[BEHAVIOR_FOLLOW_LEADER, BEHAVIOR_CIRCLE],
+        width=28,
+    )
+    mode_box.grid(row=0, column=1, padx=8, pady=6)
+
+    ttk.Label(root, text="Circle center lat (optional)").grid(
+        row=1, column=0, sticky="w", padx=8, pady=6
+    )
+    ttk.Entry(root, textvariable=center_lat_var, width=30).grid(
+        row=1, column=1, padx=8, pady=6
     )
 
-    config_path = Path(__file__).resolve().parents[1] / "config" / "vehicles.yaml"
-    vehicles_cfg = load_config(config_path)
+    ttk.Label(root, text="Circle center lon (optional)").grid(
+        row=2, column=0, sticky="w", padx=8, pady=6
+    )
+    ttk.Entry(root, textvariable=center_lon_var, width=30).grid(
+        row=2, column=1, padx=8, pady=6
+    )
 
-    leader_cfg = vehicles_cfg["leader"]
-    follower_cfgs = [vehicles_cfg["follower_left"], vehicles_cfg["follower_right"]]
+    ttk.Label(root, text="Circle radius (m)").grid(row=3, column=0, sticky="w", padx=8, pady=6)
+    ttk.Entry(root, textvariable=radius_var, width=30).grid(
+        row=3, column=1, padx=8, pady=6
+    )
 
-    leader = connect_vehicle(leader_cfg)
-    followers = [connect_vehicle(cfg) for cfg in follower_cfgs]
+    ttk.Label(root, text="Circle speed (m/s)").grid(row=4, column=0, sticky="w", padx=8, pady=6)
+    ttk.Entry(root, textvariable=speed_var, width=30).grid(
+        row=4, column=1, padx=8, pady=6
+    )
 
-    if not wait_for_heartbeat(leader, timeout_s=30):
-        return
-    if not wait_for_position(leader, timeout_s=30):
-        return
+    result: BehaviorSettings | None = None
 
-    for follower in followers:
-        if not wait_for_heartbeat(follower, timeout_s=30):
+    def on_start() -> None:
+        nonlocal result
+        mode = mode_var.get()
+        try:
+            radius = float(radius_var.get())
+            speed = float(speed_var.get())
+        except ValueError:
+            messagebox.showerror("Invalid input", "Radius and speed must be numeric values.")
             return
-        if not wait_for_position(follower, timeout_s=30):
-            return
-        set_guided_and_arm(follower)
 
-    LOG.info("Starting formation loop")
+        if radius <= 0 or speed <= 0:
+            messagebox.showerror("Invalid input", "Radius and speed must be positive values.")
+            return
+
+        center_lat = center_lat_var.get().strip()
+        center_lon = center_lon_var.get().strip()
+        center_lat_val = float(center_lat) if center_lat else None
+        center_lon_val = float(center_lon) if center_lon else None
+
+        if (center_lat_val is None) != (center_lon_val is None):
+            messagebox.showerror(
+                "Invalid input",
+                "Provide both center latitude and longitude, or leave both blank.",
+            )
+            return
+
+        result = BehaviorSettings(
+            mode=mode,
+            circle_center_lat=center_lat_val,
+            circle_center_lon=center_lon_val,
+            circle_radius_m=radius,
+            circle_speed_mps=speed,
+        )
+        root.destroy()
+
+    def on_close() -> None:
+        root.destroy()
+
+    ttk.Button(root, text="Start", command=on_start).grid(
+        row=5, column=0, columnspan=2, pady=(6, 10)
+    )
+    root.protocol("WM_DELETE_WINDOW", on_close)
+    root.mainloop()
+    return result
+
+
+def run_follow_leader(leader: VehicleState, followers: list[VehicleState]) -> None:
+    LOG.info("Starting formation loop (follow leader)")
     send_rate_hz = 5.0
     send_interval = 1.0 / send_rate_hz
     catchup_gain = 0.8
@@ -363,6 +457,105 @@ def main() -> None:
             )
 
         time.sleep(send_interval)
+
+
+def run_circle_formation(
+    vehicles: list[VehicleState],
+    center_lat: float,
+    center_lon: float,
+    radius_m: float,
+    speed_mps: float,
+) -> None:
+    LOG.info(
+        "Starting formation loop (circle): center=(%.6f, %.6f) radius=%.1fm speed=%.2fm/s",
+        center_lat,
+        center_lon,
+        radius_m,
+        speed_mps,
+    )
+    send_rate_hz = 5.0
+    send_interval = 1.0 / send_rate_hz
+    start_time = time.monotonic()
+    omega = speed_mps / radius_m
+    vehicle_count = len(vehicles)
+
+    while True:
+        t = time.monotonic() - start_time
+        for idx, vehicle in enumerate(vehicles):
+            angle = omega * t + (2 * math.pi * idx / vehicle_count)
+            offset_n = radius_m * math.cos(angle)
+            offset_e = radius_m * math.sin(angle)
+            d_lat, d_lon = meters_to_latlon_offset(offset_n, offset_e, center_lat)
+            target_lat = center_lat + d_lat
+            target_lon = center_lon + d_lon
+            velocity_n = -speed_mps * math.sin(angle)
+            velocity_e = speed_mps * math.cos(angle)
+
+            send_position_target(vehicle, target_lat, target_lon, velocity_n, velocity_e)
+            LOG.info(
+                "Circle target for %s -> lat=%.7f lon=%.7f vel N=%.2f E=%.2f",
+                vehicle.config.name,
+                target_lat,
+                target_lon,
+                velocity_n,
+                velocity_e,
+            )
+
+        time.sleep(send_interval)
+
+
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+
+    behavior = prompt_behavior_settings()
+    if behavior is None:
+        LOG.info("Behavior selection canceled; exiting.")
+        return
+
+    config_path = Path(__file__).resolve().parents[1] / "config" / "vehicles.yaml"
+    vehicles_cfg = load_config(config_path)
+
+    leader_cfg = vehicles_cfg["leader"]
+    follower_cfgs = [vehicles_cfg["follower_left"], vehicles_cfg["follower_right"]]
+
+    leader = connect_vehicle(leader_cfg)
+    followers = [connect_vehicle(cfg) for cfg in follower_cfgs]
+
+    if not wait_for_heartbeat(leader, timeout_s=30):
+        return
+    if not wait_for_position(leader, timeout_s=30):
+        return
+
+    for follower in followers:
+        if not wait_for_heartbeat(follower, timeout_s=30):
+            return
+        if not wait_for_position(follower, timeout_s=30):
+            return
+        if behavior.mode == BEHAVIOR_FOLLOW_LEADER:
+            set_guided_and_arm(follower)
+
+    if behavior.mode == BEHAVIOR_CIRCLE:
+        circle_center_lat = behavior.circle_center_lat or leader.lat
+        circle_center_lon = behavior.circle_center_lon or leader.lon
+        if circle_center_lat is None or circle_center_lon is None:
+            LOG.warning("Unable to resolve circle center; aborting.")
+            return
+
+        vehicles = [leader, *followers]
+        for vehicle in vehicles:
+            set_guided_and_arm(vehicle)
+        run_circle_formation(
+            vehicles,
+            circle_center_lat,
+            circle_center_lon,
+            behavior.circle_radius_m,
+            behavior.circle_speed_mps,
+        )
+    else:
+        run_follow_leader(leader, followers)
 
 
 if __name__ == "__main__":
