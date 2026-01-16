@@ -5,15 +5,57 @@ vehicles:
     offset:
       north_m: 0
       east_m: 0
-  - name: follower_left
+  - name: follower_1
     sysid: 2
     endpoint: udpin:0.0.0.0:14561
     offset:
-      north_m: -15
-      east_m: -10
-  - name: follower_right
+      north_m: -10
+      east_m: -20
+  - name: follower_2
     sysid: 3
     endpoint: udpin:0.0.0.0:14562
     offset:
-      north_m: -15
-      east_m: 10
+      north_m: -10
+      east_m: 0
+  - name: follower_3
+    sysid: 4
+    endpoint: udpin:0.0.0.0:14563
+    offset:
+      north_m: -10
+      east_m: 20
+  - name: follower_4
+    sysid: 5
+    endpoint: udpin:0.0.0.0:14564
+    offset:
+      north_m: -20
+      east_m: -20
+  - name: follower_5
+    sysid: 6
+    endpoint: udpin:0.0.0.0:14565
+    offset:
+      north_m: -20
+      east_m: 0
+  - name: follower_6
+    sysid: 7
+    endpoint: udpin:0.0.0.0:14566
+    offset:
+      north_m: -20
+      east_m: 20
+  - name: follower_7
+    sysid: 8
+    endpoint: udpin:0.0.0.0:14567
+    offset:
+      north_m: -30
+      east_m: -20
+  - name: follower_8
+    sysid: 9
+    endpoint: udpin:0.0.0.0:14568
+    offset:
+      north_m: -30
+      east_m: 0
+  - name: follower_9
+    sysid: 10
+    endpoint: udpin:0.0.0.0:14569
+    offset:
+      north_m: -30
+      east_m: 20

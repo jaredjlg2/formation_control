@@ -27,7 +27,7 @@ pip install -r requirements.txt
    bash scripts/start_swarm.sh
    ```
 2. Open QGroundControl and add a UDP link listening on port `14550` (server address blank).
-3. Wait for three boats to connect.
+3. Wait for ten boats to connect.
 4. Run the controller:
    ```bash
    python src/formation_controller.py
@@ -35,21 +35,21 @@ pip install -r requirements.txt
    A small app will open where you can select a swarming behavior (follow leader or
    circle). For circle, optionally set a center lat/lon, radius, and speed.
 
-**What you should see:** three Rover vehicles appear in QGroundControl. The leader (SYSID 1)
-continues its default motion, while followers (SYSID 2 and 3) switch to GUIDED and move to
-maintain a formation offset (behind-left and behind-right) relative to the leader. For
-the circle behavior, all vehicles switch to GUIDED and space themselves evenly around the
-circle at the requested speed.
+**What you should see:** ten Rover vehicles appear in QGroundControl. The leader (SYSID 1)
+continues its default motion, while followers (SYSIDs 2-10) switch to GUIDED and move to
+maintain their formation offsets relative to the leader. For the circle behavior, all
+vehicles switch to GUIDED and space themselves evenly around the circle at the requested
+speed.
 
 ## Details
 
 - `config/vehicles.yaml` holds endpoints, SYSIDs, and formation offsets. By default the
-  controller listens on UDP ports `14560`-`14562`.
-- `scripts/start_swarm.sh` launches three motorboat SITL instances via `sim_vehicle.py`
+  controller listens on UDP ports `14560`-`14569`.
+- `scripts/start_swarm.sh` launches ten motorboat SITL instances via `sim_vehicle.py`
   and forwards MAVLink to QGroundControl on UDP port `14550` (override with `QGC_PORT`).
-  It also forwards MAVLink to the controller on UDP ports `14560`-`14562` (override with
+  It also forwards MAVLink to the controller on UDP ports `14560`-`14569` (override with
   `CONTROLLER_BASE_PORT`).
-  It assigns unique SYSIDs (1-3) and staggers start positions around a base location
+  It assigns unique SYSIDs (1-10) and staggers start positions around a base location
   (`BASE_LAT`, `BASE_LON`, `BASE_ALT`, `BASE_HEADING`) with spacing in meters controlled
   by `START_SPACING_M`.
   By default it runs in headless mode (`HEADLESS=1`) to avoid opening terminal windows
@@ -80,5 +80,5 @@ circle at the requested speed.
 - The controller waits for heartbeats and a valid position fix before issuing commands.
 - If any vehicle is missing or times out, the controller logs a warning and continues
   retrying.
-- Verify the swarm is running with `pgrep -af sim_vehicle.py` (three processes) and ensure
+- Verify the swarm is running with `pgrep -af sim_vehicle.py` (ten processes) and ensure
   QGroundControl connects via UDP on port `14550`.
