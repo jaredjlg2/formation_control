@@ -30,7 +30,7 @@ pip install -r requirements.txt
 3. Wait for ten boats to connect.
 4. Run the controller:
    ```bash
-   python src/formation_controller.py
+   python src/formation_controller.py --num-vehicles 10
    ```
    A small app will open where you can select a swarming behavior (follow leader or
    circle). For circle, optionally set a center lat/lon, radius, and speed.
@@ -102,6 +102,7 @@ heartbeat, and opens a separate UDP socket for lightweight swarm messaging.
 
 ```bash
 ./scripts/start_swarm.sh --num-vehicles 3
+python src/formation_controller.py --num-vehicles 3
 ```
 
 Companion logs are written to `logs/companion_<vehicle>.log`.
