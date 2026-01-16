@@ -142,10 +142,10 @@ def set_guided_and_arm(state: VehicleState) -> None:
 
 def wait_for_armed(state: VehicleState, timeout_s: float) -> bool:
     try:
-        state.mav.motors_armed_wait(timeout=timeout_s)
+        state.mav.motors_armed_wait(timeout_s)
         return True
     except TypeError:
-        LOG.debug("motors_armed_wait does not accept timeout kwarg; falling back")
+        LOG.debug("motors_armed_wait does not accept timeout arg; falling back")
 
     start = time.monotonic()
     while time.monotonic() - start < timeout_s:
@@ -212,8 +212,9 @@ def rotate_offset(north_m: float, east_m: float, heading_deg: float) -> Tuple[fl
 
 
 def send_position_target(state: VehicleState, lat: float, lon: float) -> None:
+    time_boot_ms = int(time.monotonic() * 1e3) % (2**32)
     state.mav.mav.set_position_target_global_int_send(
-        int(time.time() * 1e3),
+        time_boot_ms,
         state.config.sysid,
         0,
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
