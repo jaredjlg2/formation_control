@@ -1,69 +1,100 @@
+mission_broadcast_port: 17000
 vehicles:
   - name: leader
+    vehicle_id: leader
     sysid: 1
+    expected_sysid: 1
+    mavlink_port: 14560
     endpoint: udpin:0.0.0.0:14560
     swarm_port: 14600
     offset:
       north_m: 0
       east_m: 0
   - name: follower_1
+    vehicle_id: follower_1
     sysid: 2
+    expected_sysid: 2
+    mavlink_port: 14561
     endpoint: udpin:0.0.0.0:14561
     swarm_port: 14601
     offset:
       north_m: -10
       east_m: -20
   - name: follower_2
+    vehicle_id: follower_2
     sysid: 3
+    expected_sysid: 3
+    mavlink_port: 14562
     endpoint: udpin:0.0.0.0:14562
     swarm_port: 14602
     offset:
       north_m: -10
       east_m: 0
   - name: follower_3
+    vehicle_id: follower_3
     sysid: 4
+    expected_sysid: 4
+    mavlink_port: 14563
     endpoint: udpin:0.0.0.0:14563
     swarm_port: 14603
     offset:
       north_m: -10
       east_m: 20
   - name: follower_4
+    vehicle_id: follower_4
     sysid: 5
+    expected_sysid: 5
+    mavlink_port: 14564
     endpoint: udpin:0.0.0.0:14564
     swarm_port: 14604
     offset:
       north_m: -20
       east_m: -20
   - name: follower_5
+    vehicle_id: follower_5
     sysid: 6
+    expected_sysid: 6
+    mavlink_port: 14565
     endpoint: udpin:0.0.0.0:14565
     swarm_port: 14605
     offset:
       north_m: -20
       east_m: 0
   - name: follower_6
+    vehicle_id: follower_6
     sysid: 7
+    expected_sysid: 7
+    mavlink_port: 14566
     endpoint: udpin:0.0.0.0:14566
     swarm_port: 14606
     offset:
       north_m: -20
       east_m: 20
   - name: follower_7
+    vehicle_id: follower_7
     sysid: 8
+    expected_sysid: 8
+    mavlink_port: 14567
     endpoint: udpin:0.0.0.0:14567
     swarm_port: 14607
     offset:
       north_m: -30
       east_m: -20
   - name: follower_8
+    vehicle_id: follower_8
     sysid: 9
+    expected_sysid: 9
+    mavlink_port: 14568
     endpoint: udpin:0.0.0.0:14568
     swarm_port: 14608
     offset:
       north_m: -30
       east_m: 0
   - name: follower_9
+    vehicle_id: follower_9
     sysid: 10
+    expected_sysid: 10
+    mavlink_port: 14569
     endpoint: udpin:0.0.0.0:14569
     swarm_port: 14609
     offset:

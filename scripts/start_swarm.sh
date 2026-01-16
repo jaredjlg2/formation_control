@@ -6,6 +6,7 @@ REPO_DIR=$(cd "${SCRIPT_DIR}/.." && pwd)
 LOG_DIR="${REPO_DIR}/logs"
 CONFIG_FILE="${REPO_DIR}/config/vehicles.yaml"
 NUM_VEHICLES=""
+WITH_CENTRAL_CONTROLLER=0
 
 ARDUPILOT_DIR=${ARDUPILOT_DIR:-$HOME/ardupilot}
 SIM_VEHICLE="${ARDUPILOT_DIR}/Tools/autotest/sim_vehicle.py"
@@ -30,6 +31,10 @@ while [[ $# -gt 0 ]]; do
     --num-vehicles)
       NUM_VEHICLES="$2"
       shift 2
+      ;;
+    --with-central-controller)
+      WITH_CENTRAL_CONTROLLER=1
+      shift
       ;;
     *)
       echo "Unknown argument: $1" >&2
@@ -89,7 +94,10 @@ if num_vehicles:
 for idx, vehicle in enumerate(vehicles):
     sysid = int(vehicle.get("sysid", idx + 1))
     endpoint = vehicle.get("endpoint", "")
+    mavlink_port = vehicle.get("mavlink_port")
     port = endpoint.rsplit(":", 1)[-1] if ":" in endpoint else ""
+    if not port and mavlink_port:
+        port = str(mavlink_port)
     print(f"{sysid}\t{port}")
 PY
 )
@@ -168,7 +176,20 @@ SUMMARY
 "${SCRIPT_DIR}/start_companions.sh" --config "${CONFIG_FILE}" ${NUM_VEHICLES:+--num-vehicles "${NUM_VEHICLES}"} &
 companions_pid=$!
 
+controller_pid=""
+if [[ "${WITH_CENTRAL_CONTROLLER}" == "1" ]]; then
+  log_file="${LOG_DIR}/formation_controller.log"
+  nohup python3 "${REPO_DIR}/src/formation_controller.py" \
+    ${NUM_VEHICLES:+--num-vehicles "${NUM_VEHICLES}"} \
+    > "${log_file}" 2>&1 &
+  controller_pid=$!
+  echo "Started central formation_controller (PID ${controller_pid})"
+fi
+
 cleanup() {
+  if [[ -n "${controller_pid}" ]] && kill -0 "${controller_pid}" 2>/dev/null; then
+    kill "${controller_pid}" 2>/dev/null || true
+  fi
   if kill -0 "${companions_pid}" 2>/dev/null; then
     kill "${companions_pid}" 2>/dev/null || true
   fi
