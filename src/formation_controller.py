@@ -897,14 +897,24 @@ def select_vehicle_configs(
         raise ValueError("Leader vehicle missing from config")
 
     leader_cfg = vehicles_cfg["leader"]
-    follower_names = [
-        name for name in vehicle_order if name != "leader" and name in vehicles_cfg
-    ]
+    ordered_names = [name for name in vehicle_order if name in vehicles_cfg]
+    if "leader" not in ordered_names:
+        ordered_names.insert(0, "leader")
+
     if num_vehicles is not None:
         if num_vehicles < 1:
             raise ValueError("--num-vehicles must be >= 1")
-        follower_names = follower_names[: max(0, num_vehicles - 1)]
+        selected_names = ordered_names[:num_vehicles]
+        if "leader" not in selected_names:
+            selected_names.insert(0, "leader")
+            if len(selected_names) > num_vehicles:
+                selected_names = selected_names[:num_vehicles]
+    else:
+        selected_names = ordered_names
 
+    follower_names = [
+        name for name in selected_names if name != "leader" and name in vehicles_cfg
+    ]
     follower_cfgs = [vehicles_cfg[name] for name in follower_names]
     return leader_cfg, follower_cfgs
 
