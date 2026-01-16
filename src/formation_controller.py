@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
 import math
 import random
@@ -870,25 +871,59 @@ def run_behavior_control(
     root.mainloop()
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Formation controller")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "config" / "vehicles.yaml",
+        help="Path to vehicles.yaml config",
+    )
+    parser.add_argument(
+        "--num-vehicles",
+        type=int,
+        default=None,
+        help="Number of vehicles to control (including leader)",
+    )
+    return parser.parse_args()
+
+
+def select_vehicle_configs(
+    vehicles_cfg: Dict[str, VehicleConfig],
+    vehicle_order: list[str],
+    num_vehicles: int | None,
+) -> tuple[VehicleConfig, list[VehicleConfig]]:
+    if "leader" not in vehicles_cfg:
+        raise ValueError("Leader vehicle missing from config")
+
+    leader_cfg = vehicles_cfg["leader"]
+    follower_names = [
+        name for name in vehicle_order if name != "leader" and name in vehicles_cfg
+    ]
+    if num_vehicles is not None:
+        if num_vehicles < 1:
+            raise ValueError("--num-vehicles must be >= 1")
+        follower_names = follower_names[: max(0, num_vehicles - 1)]
+
+    follower_cfgs = [vehicles_cfg[name] for name in follower_names]
+    return leader_cfg, follower_cfgs
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
 
-    config_path = Path(__file__).resolve().parents[1] / "config" / "vehicles.yaml"
-    vehicles_cfg, vehicle_order = load_config(config_path)
-
-    if "leader" not in vehicles_cfg:
-        LOG.error("Leader vehicle missing from config; exiting.")
+    args = parse_args()
+    vehicles_cfg, vehicle_order = load_config(args.config)
+    try:
+        leader_cfg, follower_cfgs = select_vehicle_configs(
+            vehicles_cfg, vehicle_order, args.num_vehicles
+        )
+    except ValueError as exc:
+        LOG.error("%s; exiting.", exc)
         return
-
-    leader_cfg = vehicles_cfg["leader"]
-    follower_cfgs = [
-        vehicles_cfg[name]
-        for name in vehicle_order
-        if name != "leader" and name in vehicles_cfg
-    ]
 
     leader = connect_vehicle(leader_cfg)
     followers = [connect_vehicle(cfg) for cfg in follower_cfgs]
