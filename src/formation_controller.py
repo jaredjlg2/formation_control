@@ -1,4 +1,4 @@
-"""Formation controller for three ArduPilot Rover SITL vehicles."""
+"""Formation controller for ArduPilot Rover SITL vehicles."""
 
 from __future__ import annotations
 

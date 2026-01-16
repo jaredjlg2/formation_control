@@ -49,15 +49,19 @@ if [[ -n "${MAVPROXY_ARGS}" ]]; then
   mavproxy_args=(--mavproxy-args "${MAVPROXY_ARGS}")
 fi
 
-for idx in 0 1 2; do
+vehicle_count=10
+grid_columns=5
+
+for idx in $(seq 0 $((vehicle_count - 1))); do
   log_file="${LOG_DIR}/sim_vehicle_${idx}.log"
   sysid=$((idx + 1))
   north_offset_m=0
   east_offset_m=0
-  if [[ "${idx}" -eq 1 ]]; then
-    east_offset_m="${START_SPACING_M}"
-  elif [[ "${idx}" -eq 2 ]]; then
-    north_offset_m="${START_SPACING_M}"
+  if [[ "${idx}" -ne 0 ]]; then
+    row=$((idx / grid_columns))
+    col=$((idx % grid_columns))
+    north_offset_m=$((row * START_SPACING_M))
+    east_offset_m=$((col * START_SPACING_M))
   fi
   home_location=$(python3 - <<PY
 import math
@@ -99,12 +103,12 @@ PY
 done
 
 cat <<SUMMARY
-Swarm started with 3 Rover motorboat SITL instances.
+Swarm started with ${vehicle_count} Rover motorboat SITL instances.
 
 QGC UDP port: ${QGC_PORT}
-Controller UDP ports: ${CONTROLLER_BASE_PORT}-$((CONTROLLER_BASE_PORT + 2))
-Instances: 0, 1, 2
-SYSIDs: 1, 2, 3 (assigned explicitly per instance)
+Controller UDP ports: ${CONTROLLER_BASE_PORT}-$((CONTROLLER_BASE_PORT + vehicle_count - 1))
+Instances: 0-$((vehicle_count - 1))
+SYSIDs: 1-${vehicle_count} (assigned explicitly per instance)
 Logs: ${LOG_DIR}/sim_vehicle_<I>.log (e.g., ${LOG_DIR}/sim_vehicle_0.log)
 PIDs: ${LOG_DIR}/sitl_pids.txt
 SUMMARY
